@@ -1,0 +1,7 @@
+{
+  "name": "CashFlow Pro",
+  "description": "A simple todo list application powered by Supabase, demonstrating real-time data fetching and display.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
