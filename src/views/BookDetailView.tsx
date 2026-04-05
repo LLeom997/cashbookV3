@@ -7,6 +7,7 @@ import {
   addBulkTransactions,
   addTransaction,
   getBusiness,
+  getBook,
   getTransactionsWithBalance,
   updateBookTotals,
   fetchLedgerCustomSettings,
@@ -81,6 +82,7 @@ export const BookDetailView = ({ }: Props) => {
   const setTransactions = (newTxs: TransactionWithBalance[]) => setDataTransactions(bookId, newTxs);
 
   const [book, setBook] = useState<Book | null>(null);
+  const [role, setRole] = useState<'owner' | 'admin' | 'editor' | 'viewer'>('viewer');
   const [loading, setLoading] = useState(transactions.length === 0);
   const [rowsLimit, setRowsLimit] = useState(100);
   const [searchTerm, setSearchTerm] = useState('');
@@ -131,8 +133,16 @@ export const BookDetailView = ({ }: Props) => {
     if (!isAppend && (transactions.length === 0 || !book)) setLoading(true);
 
     try {
-      const biz = await getBusiness(bookId);
-      if (biz) setBook({ ...biz, businessId: biz.id });
+      // 1. Fetch Ledger Info
+      const ledger = await getBook(bookId);
+      if (ledger) {
+        setBook(ledger);
+        // 2. Fetch Business Role
+        const biz = await getBusiness(ledger.businessId);
+        if (biz) {
+          setRole(biz.role as any);
+        }
+      }
 
       let currentOffset = 0;
       const chunkSize = 1000;
@@ -571,11 +581,15 @@ export const BookDetailView = ({ }: Props) => {
           </div>
           <div className="flex gap-2">
             <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImportCSV} />
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="hidden md:flex">
-              <PlusCircleIcon className="w-4 h-4 mr-2" /> Import
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportCSV} className="hidden md:flex">
-              <DownloadIcon className="w-4 h-4 mr-2" /> Export
+            {role !== 'viewer' && (
+              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="flex items-center">
+                <PlusCircleIcon className="w-4 h-4 mr-1.5 sm:mr-2" /> 
+                <span className="text-[10px] sm:text-sm">Import</span>
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={handleExportCSV} className="flex items-center">
+              <DownloadIcon className="w-4 h-4 mr-1.5 sm:mr-2" /> 
+              <span className="text-[10px] sm:text-sm">Export</span>
             </Button>
           </div>
         </div>
@@ -603,16 +617,18 @@ export const BookDetailView = ({ }: Props) => {
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 py-2">
           <h3 className="text-xl font-black text-slate-800 uppercase tracking-widest hidden md:block">Transactions</h3>
           <div className="flex gap-2 w-full md:w-auto items-center">
-            {selectedTxs.size > 0 && (
+            {selectedTxs.size > 0 && role !== 'viewer' && (
               <Button onClick={() => handleDelete(selectedTxs)} variant="destructive" className="flex-1 md:flex-none font-bold uppercase tracking-widest text-[10px] h-10 shadow-sm animate-in fade-in zoom-in">
                 <PlusCircleIcon className="w-4 h-4 md:mr-2 rotate-45" />
                 <span className="hidden md:inline">Delete {selectedTxs.size}</span>
               </Button>
             )}
-            <Button onClick={() => setShowManageCategories(true)} variant="outline" className="flex-1 md:flex-none bg-white border-slate-200 text-slate-600 font-bold uppercase tracking-widest text-[10px] h-10 shadow-sm hover:border-blue-400 hover:text-blue-600 transition-all">
-              <SettingsIcon className="w-4 h-4 md:mr-2" />
-              <span className="hidden md:inline">Settings</span>
-            </Button>
+            {role !== 'viewer' && (
+              <Button onClick={() => setShowManageCategories(true)} variant="outline" className="flex-1 md:flex-none bg-white border-slate-200 text-slate-600 font-bold uppercase tracking-widest text-[10px] h-10 shadow-sm hover:border-blue-400 hover:text-blue-600 transition-all">
+                <SettingsIcon className="w-4 h-4 md:mr-2" />
+                <span className="hidden md:inline">Settings</span>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -639,7 +655,12 @@ export const BookDetailView = ({ }: Props) => {
             if (sel) next.add(id); else next.delete(id);
             setSelectedTxs(next);
           }}
-          onEditTx={(tx) => { setEditingTx(tx); setAddType(tx.type); setShowAddModal(true); }}
+          onEditTx={(tx) => { 
+            if (role === 'viewer') return;
+            setEditingTx(tx); 
+            setAddType(tx.type); 
+            setShowAddModal(true); 
+          }}
           sortField={sortField} sortOrder={sortOrder} onSort={handleSort}
           visibleColumns={settings.visibleColumns}
         />
@@ -695,14 +716,16 @@ export const BookDetailView = ({ }: Props) => {
         )}
       </main>
 
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex gap-4 z-30">
-        <Button size="lg" onClick={() => { setEditingTx(null); setAddType(TransactionType.IN); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-8 h-14 shadow-xl font-black uppercase tracking-widest text-xs">
-          <PlusCircleIcon className="w-5 h-5 mr-2" /> Cash In
-        </Button>
-        <Button size="lg" onClick={() => { setEditingTx(null); setAddType(TransactionType.OUT); setShowAddModal(true); }} className="bg-rose-600 hover:bg-rose-700 text-white rounded-full px-8 h-14 shadow-xl font-black uppercase tracking-widest text-xs">
-          <PlusCircleIcon className="w-5 h-5 mr-2" /> Cash Out
-        </Button>
-      </div>
+      {role !== 'viewer' && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex gap-4 z-30">
+          <Button size="lg" onClick={() => { setEditingTx(null); setAddType(TransactionType.IN); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-8 h-14 shadow-xl font-black uppercase tracking-widest text-xs">
+            <PlusCircleIcon className="w-5 h-5 mr-2" /> Cash In
+          </Button>
+          <Button size="lg" onClick={() => { setEditingTx(null); setAddType(TransactionType.OUT); setShowAddModal(true); }} className="bg-rose-600 hover:bg-rose-700 text-white rounded-full px-8 h-14 shadow-xl font-black uppercase tracking-widest text-xs">
+            <PlusCircleIcon className="w-5 h-5 mr-2" /> Cash Out
+          </Button>
+        </div>
+      )}
 
       <TransactionDialog
         isOpen={showAddModal}

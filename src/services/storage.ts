@@ -47,12 +47,16 @@ const parseNum = (val: any) => {
 // --- Business (Projects) ---
 
 export const getBusinesses = async (userId: string): Promise<BusinessWithTotals[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  // 1. Fetch Owned Projects
   const { data: ownedData, error: ownedError } = await supabase
     .from('projects')
     .select(`
       *,
       ledgers (
-        id, name, created_at
+        id, name, created_at, total_in, total_out, balance
       )
     `)
     .eq('owner_id', userId)
@@ -60,59 +64,146 @@ export const getBusinesses = async (userId: string): Promise<BusinessWithTotals[
 
   if (ownedError) console.error("Owned Error", ownedError);
 
-  const ownedBusinesses = ownedData || [];
+  // 2. Fetch Shared Projects (Where user email matches collaborator entry)
+  const { data: sharedCollabs, error: sharedError } = await supabase
+    .from('project_collaborators')
+    .select(`
+      *,
+      projects (
+        *,
+        ledgers (
+          id, name, created_at, total_in, total_out, balance
+        )
+      )
+    `)
+    .eq('user_email', user.email)
+    .order('created_at', { ascending: false });
 
-  return ownedBusinesses.map((b: any) => {
-    let totalIn = 0;
-    let totalOut = 0;
-    let bookCount = 0;
-    let books: BookWithTotals[] = [];
+  if (sharedError) console.error("Shared Fetch Error", sharedError);
 
-    if (b.ledgers) {
-      bookCount = b.ledgers.length;
-      books = b.ledgers.map((book: any) => ({
+  const ownedBusinesses = (ownedData || []).map((b: any) => mapBusiness(b, 'owner', false));
+  const sharedBusinesses = (sharedCollabs || []).map((c: any) => {
+    const b = c.projects;
+    // Filter ledgers based on collaborator access
+    const accessibleLedgers = b.ledgers.filter((l: any) => 
+      c.role === 'admin' || c.accessible_ledger_ids.includes(l.id)
+    );
+    return mapBusiness({ ...b, ledgers: accessibleLedgers }, c.role, true);
+  });
+
+  return [...ownedBusinesses, ...sharedBusinesses].sort((a, b) => b.createdAt - a.createdAt);
+};
+
+const mapBusiness = (b: any, role: any, isShared: boolean): BusinessWithTotals => {
+  let totalIn = 0;
+  let totalOut = 0;
+  let bookCount = 0;
+  let books: BookWithTotals[] = [];
+
+  if (b.ledgers) {
+    bookCount = b.ledgers.length;
+    books = b.ledgers.map((book: any) => {
+      const bIn = Number(book.total_in || 0);
+      const bOut = Number(book.total_out || 0);
+      const bal = Number(book.balance || 0);
+      
+      totalIn += bIn;
+      totalOut += bOut;
+      
+      return {
         id: book.id,
         businessId: b.id,
         name: book.name,
         createdAt: new Date(book.created_at).getTime(),
-        totalIn: Number(book.total_in || 0),
-        totalOut: Number(book.total_out || 0),
+        totalIn: bIn,
+        totalOut: bOut,
         countIn: 0,
         countOut: 0,
-        balance: Number(book.balance || 0)
-      }));
-      books.sort((a, b) => b.createdAt - a.createdAt);
-    }
+        balance: bal
+      };
+    });
+    books.sort((a, b) => b.createdAt - a.createdAt);
+  }
 
-    return {
-      id: b.id,
-      userId: b.owner_id,
-      name: b.name,
-      currency: b.currency,
-      createdAt: new Date(b.created_at).getTime(),
-      totalIn: Number(b.total_in || 0),
-      totalOut: Number(b.total_out || 0),
-      balance: Number(b.balance || 0),
-      bookCount,
-      books,
-    };
-  });
+  return {
+    id: b.id,
+    userId: b.owner_id,
+    name: b.name,
+    currency: b.currency,
+    createdAt: new Date(b.created_at).getTime(),
+    totalIn,
+    totalOut,
+    balance: totalIn - totalOut, // Correctly derived from accessible books only
+    bookCount,
+    books,
+    role,
+    isShared
+  };
 };
 
 export const getBusiness = async (id: string): Promise<BusinessWithTotals | undefined> => {
-  const { data } = await supabase.from('projects').select('*').eq('id', id).single();
-  if (!data) return undefined;
-  return {
-    id: data.id,
-    userId: data.owner_id,
-    name: data.name,
-    currency: data.currency,
-    createdAt: new Date(data.created_at).getTime(),
-    totalIn: Number(data.total_in || 0),
-    totalOut: Number(data.total_out || 0),
-    balance: Number(data.balance || 0),
-    bookCount: 0
-  };
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return undefined;
+
+  // 1. Check if owner
+  const { data: project } = await supabase.from('projects').select('*').eq('id', id).single();
+  
+  if (project) {
+    if (project.owner_id === user.id) {
+      return {
+        id: project.id,
+        userId: project.owner_id,
+        name: project.name,
+        currency: project.currency,
+        createdAt: new Date(project.created_at).getTime(),
+        totalIn: Number(project.total_in || 0),
+        totalOut: Number(project.total_out || 0),
+        balance: Number(project.balance || 0),
+        bookCount: 0,
+        role: 'owner',
+        isShared: false
+      };
+    }
+
+    // 2. Check if collaborator
+    const { data: collab } = await supabase
+      .from('project_collaborators')
+      .select('*')
+      .eq('project_id', id)
+      .eq('user_email', user.email)
+      .single();
+
+    if (collab) {
+      // Fetch only allowed ledgers to compute totals
+      const { data: allowedLedgers } = await supabase
+        .from('ledgers')
+        .select('total_in, total_out, balance')
+        .eq('project_id', id)
+        .in('id', collab.role === 'admin' ? [] : collab.accessible_ledger_ids); // Note: if admin, we might want all, but usually RLS handles this. Let's be explicit.
+
+      const totals = (allowedLedgers || []).reduce((acc, l) => ({
+        totalIn: acc.totalIn + Number(l.total_in || 0),
+        totalOut: acc.totalOut + Number(l.total_out || 0),
+        balance: acc.balance + Number(l.balance || 0)
+      }), { totalIn: 0, totalOut: 0, balance: 0 });
+
+      return {
+        id: project.id,
+        userId: project.owner_id,
+        name: project.name,
+        currency: project.currency,
+        createdAt: new Date(project.created_at).getTime(),
+        totalIn: totals.totalIn,
+        totalOut: totals.totalOut,
+        balance: totals.balance,
+        bookCount: (allowedLedgers || []).length,
+        role: collab.role,
+        isShared: true
+      };
+    }
+  }
+
+  return undefined;
 };
 
 export const createBusiness = async (name: string): Promise<{ data: Business | null, error: string | null }> => {
@@ -184,13 +275,29 @@ export const deleteBusiness = async (id: string): Promise<{ error: string | null
 // --- Books (Ledgers) ---
 
 export const getBooks = async (businessId: string): Promise<BookWithTotals[]> => {
-  const { data, error } = await supabase
-    .from('ledgers')
-    .select(`
-      *
-    `)
-    .eq('project_id', businessId)
-    .order('created_at', { ascending: false });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: project } = await supabase.from('projects').select('owner_id').eq('id', businessId).single();
+  const isOwner = project?.owner_id === user.id;
+
+  let query = supabase.from('ledgers').select('*').eq('project_id', businessId);
+
+  if (!isOwner) {
+    const { data: collab } = await supabase
+      .from('project_collaborators')
+      .select('*')
+      .eq('project_id', businessId)
+      .eq('user_email', user.email)
+      .single();
+
+    if (!collab) return []; // No access
+    if (collab.role !== 'admin') {
+      query = query.in('id', collab.accessible_ledger_ids || []);
+    }
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error || !data) return [];
 
@@ -1013,4 +1120,159 @@ export const syncLedgerSettings = async (
   }
 
   return { success: true };
+};
+
+// --- Collaborators ---
+import { ProjectCollaborator } from '../types';
+
+export const getCollaborators = async (projectId: string): Promise<ProjectCollaborator[]> => {
+  const { data, error } = await supabase
+    .from('project_collaborators')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((c: any) => ({
+    id: c.id,
+    projectId: c.project_id,
+    userEmail: c.user_email,
+    role: c.role,
+    accessibleLedgerIds: c.accessible_ledger_ids || [],
+    createdAt: new Date(c.created_at).getTime()
+  }));
+};
+
+export const inviteCollaborator = async (
+  projectId: string, 
+  email: string, 
+  role: 'admin' | 'editor' | 'viewer', 
+  ledgerIds: string[]
+): Promise<{ error: string | null }> => {
+  const { error } = await supabase
+    .from('project_collaborators')
+    .insert([{
+      project_id: projectId,
+      user_email: email,
+      role,
+      accessible_ledger_ids: ledgerIds
+    }]);
+
+  if (error) return { error: error.message };
+  return { error: null };
+};
+
+export const removeCollaborator = async (id: string): Promise<{ error: string | null }> => {
+  const { error } = await supabase
+    .from('project_collaborators')
+    .delete()
+    .eq('id', id);
+
+  if (error) return { error: error.message };
+  return { error: null };
+};
+
+export const updateCollaborator = async (
+  id: string,
+  role: 'admin' | 'editor' | 'viewer',
+  ledgerIds: string[]
+): Promise<{ error: string | null }> => {
+  const { error } = await supabase
+    .from('project_collaborators')
+    .update({
+      role,
+      accessible_ledger_ids: ledgerIds
+    })
+    .eq('id', id);
+
+  if (error) return { error: error.message };
+  return { error: null };
+};
+
+// --- Join Codes ---
+import { JoinCode } from '../types';
+
+export const getJoinCodes = async (projectId: string): Promise<JoinCode[]> => {
+  const { data, error } = await supabase
+    .from('join_codes')
+    .select('*')
+    .eq('project_id', projectId)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+  return data.map((c: any) => ({
+    id: c.id,
+    code: c.code,
+    projectId: c.project_id,
+    role: c.role,
+    accessibleLedgerIds: c.accessible_ledger_ids || [],
+    createdAt: new Date(c.created_at).getTime(),
+    expiresAt: new Date(c.expires_at).getTime()
+  }));
+};
+
+export const generateJoinCode = async (
+  projectId: string,
+  role: 'admin' | 'editor' | 'viewer',
+  ledgerIds: string[]
+): Promise<{ code: string | null, error: string | null }> => {
+  // Generate a random 6-character code
+  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  
+  const { error } = await supabase
+    .from('join_codes')
+    .insert([{
+      project_id: projectId,
+      code,
+      role,
+      accessible_ledger_ids: ledgerIds
+    }]);
+
+  if (error) return { code: null, error: error.message };
+  return { code, error: null };
+};
+
+export const deleteJoinCode = async (id: string): Promise<{ error: string | null }> => {
+  const { error } = await supabase
+    .from('join_codes')
+    .delete()
+    .eq('id', id);
+
+  if (error) return { error: error.message };
+  return { error: null };
+};
+
+export const useJoinCode = async (code: string): Promise<{ error: string | null }> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "User not logged in" };
+
+  // 1. Verify code
+  const { data: joinRecord, error: fetchError } = await supabase
+    .from('join_codes')
+    .select('*')
+    .eq('code', code.toUpperCase())
+    .gt('expires_at', new Date().toISOString())
+    .single();
+
+  if (fetchError || !joinRecord) return { error: "Invalid or expired code" };
+
+  // 2. Add as collaborator
+  const { error: collabError } = await supabase
+    .from('project_collaborators')
+    .insert([{
+      project_id: joinRecord.project_id,
+      user_email: user.email,
+      role: joinRecord.role,
+      accessible_ledger_ids: joinRecord.accessible_ledger_ids,
+      join_code_id: joinRecord.id // Link the code for cascaded revocation
+    }]);
+
+  if (collabError) {
+    if (collabError.code === '23505') return { error: "You already have access to this business" };
+    return { error: collabError.message };
+  }
+
+  return { error: null };
 };

@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { BusinessWithTotals, User } from '../types';
-import { getBusinesses, createBusiness, updateBusiness, deleteBusiness } from '../services/storage';
-import { PlusCircleIcon, PencilIcon, TrashIcon, SettingsIcon, SearchIcon, LogOutIcon, LayoutDashboardIcon, ListTodoIcon, WalletIcon, TrendingUpIcon } from 'lucide-react';
+import { getBusinesses, createBusiness, updateBusiness, deleteBusiness, useJoinCode } from '../services/storage';
+import { PlusCircleIcon, PencilIcon, TrashIcon, SettingsIcon, SearchIcon, LogOutIcon, LayoutDashboardIcon, ListTodoIcon, WalletIcon, TrendingUpIcon, ShieldCheckIcon, UsersIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
 import { CheckCircle2Icon, AlertCircleIcon, InfoIcon, XIcon } from 'lucide-react';
@@ -33,6 +33,10 @@ export const DashboardView = ({ user, onLogout }: Props) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [businessToDelete, setBusinessToDelete] = useState<{ id: string, name: string } | null>(null);
   const [deleteConfirmationName, setDeleteConfirmationName] = useState('');
+
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
 
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'destructive' | 'info' } | null>(null);
 
@@ -110,6 +114,24 @@ export const DashboardView = ({ user, onLogout }: Props) => {
     setBusinessToDelete({ id, name });
     setDeleteConfirmationName('');
     setShowDeleteModal(true);
+  };
+
+  const handleJoinCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCode) return;
+
+    setIsJoining(true);
+    const { error } = await useJoinCode(joinCode);
+    setIsJoining(false);
+
+    if (error) {
+      toast.error(error);
+    } else {
+      toast.success('Successfully joined business!');
+      setJoinCode('');
+      setShowJoinModal(false);
+      loadData();
+    }
   };
 
   const confirmDelete = async (e: React.FormEvent) => {
@@ -250,13 +272,23 @@ export const DashboardView = ({ user, onLogout }: Props) => {
               className="pl-10 h-10 bg-white border-slate-200 focus:ring-blue-500 rounded-xl"
             />
           </div>
-          <Button
-            onClick={() => { setEditingId(null); setNewBizName(''); setShowAddModal(true); }}
-            className="w-full sm:w-auto h-10 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 rounded-xl font-bold"
-          >
-            <PlusCircleIcon className="w-4 h-4 mr-2" />
-            New Business
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => setShowJoinModal(true)}
+              className="flex-1 sm:flex-none h-10 border-blue-200 text-blue-600 hover:bg-blue-50 rounded-xl font-bold"
+            >
+              <UsersIcon className="w-4 h-4 mr-2" />
+              Join Business
+            </Button>
+            <Button
+              onClick={() => { setEditingId(null); setNewBizName(''); setShowAddModal(true); }}
+              className="flex-1 sm:flex-none h-10 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 rounded-xl font-bold"
+            >
+              <PlusCircleIcon className="w-4 h-4 mr-2" />
+              New Business
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -283,10 +315,21 @@ export const DashboardView = ({ user, onLogout }: Props) => {
                   <CardHeader className="p-4 pb-2">
                     <div className="flex justify-between items-start">
                       <div className="space-y-1">
-                        <CardTitle className="text-lg sm:text-xl font-bold group-hover:text-blue-600 transition-colors truncate max-w-[150px] sm:max-w-[200px]">
+                        <CardTitle className="text-lg sm:text-xl font-bold group-hover:text-blue-600 transition-colors truncate max-w-[150px] sm:max-w-[200px] flex items-center gap-2">
                           {b.name}
+                          {b.isShared && (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[8px] uppercase tracking-tighter">
+                              <UsersIcon className="w-2 h-2" />
+                              Shared
+                            </span>
+                          )}
                         </CardTitle>
-                        <CardDescription className="text-[10px] sm:text-xs">{b.bookCount} Ledgers</CardDescription>
+                        <CardDescription className="text-[10px] sm:text-xs flex items-center gap-1">
+                          {b.bookCount} Ledgers 
+                          {b.isShared && (
+                            <span className="text-slate-300">• {b.role}</span>
+                          )}
+                        </CardDescription>
                       </div>
                       <div className={cn(
                         "px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold",
@@ -333,24 +376,31 @@ export const DashboardView = ({ user, onLogout }: Props) => {
                         </div>
                       </div>
 
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
-                          onClick={(e) => handleEditClick(b, e)}
-                        >
-                          <PencilIcon className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                          onClick={(e) => handleDeleteClick(b.id, b.name, e)}
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {!b.isShared || b.role === 'admin' ? (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                            onClick={(e) => handleEditClick(b, e)}
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            onClick={(e) => handleDeleteClick(b.id, b.name, e)}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-[8px] font-black text-slate-300 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ShieldCheckIcon className="w-3 h-3" />
+                          {b.role} Access
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -435,6 +485,40 @@ export const DashboardView = ({ user, onLogout }: Props) => {
                 disabled={deleteConfirmationName !== businessToDelete?.name}
               >
                 Delete Forever
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {/* Join Business Dialog */}
+      <Dialog open={showJoinModal} onOpenChange={setShowJoinModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Join Business</DialogTitle>
+            <DialogDescription>
+              Enter the join code shared with you to access another user's business.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleJoinCode} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Join Code</label>
+              <Input
+                autoFocus
+                placeholder="e.g. AB12CD"
+                value={joinCode}
+                onChange={e => setJoinCode(e.target.value.toUpperCase())}
+                className="h-12 text-center text-2xl font-black tracking-[0.2em] border-slate-200"
+                maxLength={6}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setShowJoinModal(false)}>Cancel</Button>
+              <Button 
+                type="submit" 
+                disabled={!joinCode || isJoining} 
+                className="bg-blue-600 hover:bg-blue-700 min-w-[100px]"
+              >
+                {isJoining ? 'Joining...' : 'Join Now'}
               </Button>
             </DialogFooter>
           </form>

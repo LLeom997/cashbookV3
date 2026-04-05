@@ -60,6 +60,27 @@ export interface BusinessWithTotals extends Business {
   balance: number;
   bookCount: number;
   books?: BookWithTotals[]; // Quick links
+  role?: 'owner' | 'admin' | 'editor' | 'viewer'; // User's role in this business
+  isShared?: boolean; // True if user is a collaborator, not the owner
+}
+
+export interface ProjectCollaborator {
+  id: string;
+  projectId: string;
+  userEmail: string;
+  role: 'admin' | 'editor' | 'viewer';
+  accessibleLedgerIds: string[]; // IDs of specific books shared
+  createdAt: number;
+}
+
+export interface JoinCode {
+  id: string;
+  code: string;
+  projectId: string;
+  role: 'admin' | 'editor' | 'viewer';
+  accessibleLedgerIds: string[];
+  createdAt: number;
+  expiresAt: number;
 }
 
 export interface TransactionWithBalance extends Transaction {
