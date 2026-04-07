@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User } from '../types';
 import { ArrowLeftIcon, SettingsIcon, LogOutIcon, UserIcon, MailIcon, PhoneIcon, BriefcaseIcon, CreditCardIcon, TagIcon, PencilIcon, TrashIcon, PlusCircleIcon } from '../components/Icons';
-import { logoutUser, updateUserProfile } from '../services/storage';
+import { logoutUser, updateUserProfile } from '../services/auth';
 import { useAppStore } from '../store';
 import { toast } from 'sonner';
 import { Input } from '../components/ui/input';

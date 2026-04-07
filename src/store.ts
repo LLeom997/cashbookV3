@@ -4,6 +4,8 @@ import { User, BusinessWithTotals, BookWithTotals, TransactionWithBalance } from
 import { Todo } from './views/TodoView';
 
 interface AppState {
+  hasHydrated: boolean;
+  setHasHydrated: (hydrated: boolean) => void;
   user: User | null;
   setUser: (user: User | null) => void;
   logout: () => void;
@@ -58,6 +60,8 @@ const initialFilters = {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
+      hasHydrated: false,
+      setHasHydrated: (hydrated) => set({ hasHydrated: hydrated }),
       user: null,
       setUser: (user) => set({ user }),
       logout: () => set({ user: null, filters: initialFilters }),
@@ -109,6 +113,9 @@ export const useAppStore = create<AppState>()(
     {
       name: 'cashflow-app-storage',
       storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
       partialize: (state) => ({
         user: state.user,
         dataBusinesses: state.dataBusinesses,

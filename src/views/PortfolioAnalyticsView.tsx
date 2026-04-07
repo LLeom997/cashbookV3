@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { LoadingScreen } from '../components/LoadingScreen';
 import { 
   AreaChart, 
   Area, 
@@ -29,27 +30,30 @@ import {
   Legend
 } from 'recharts';
 import { cn, formatCurrency } from '../lib/utils';
-import { getGlobalTransactions, getPortfolioSummary, getBusinesses } from '../services/storage';
+import { getBusinesses } from '../services/businesses';
+import { getGlobalTransactions, getPortfolioSummary } from '../services/analytics';
 import { Transaction, TransactionType, BusinessWithTotals } from '../types';
 
 const COLORS = ['#2563EB', '#059669', '#D97706', '#7C3AED', '#DB2777', '#0891B2', '#4F46E5', '#EA580C', '#65A30D'];
 
 export const PortfolioAnalyticsView = () => {
   const navigate = useNavigate();
-  const { user } = useAppStore();
+  const { user, hasHydrated } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState({ totalIn: 0, totalOut: 0, balance: 0, projectCount: 0 });
   const [businesses, setBusinesses] = useState<BusinessWithTotals[]>([]);
   const [dateRange, setDateRange] = useState<'ALL' | '7D' | '30D' | '90D'>('ALL');
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!hasHydrated || !user) return;
     loadData();
-  }, [user, dateRange]);
+  }, [user, dateRange, hasHydrated]);
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [allTxs, portSummary, bizs] = await Promise.all([
         getGlobalTransactions(user!.id, 2000),
@@ -61,6 +65,7 @@ export const PortfolioAnalyticsView = () => {
       setBusinesses(bizs);
     } catch (err) {
       console.error("Failed to load analytics", err);
+      setLoadError("Couldn't load portfolio analytics.");
     } finally {
       setLoading(false);
     }
@@ -115,9 +120,21 @@ export const PortfolioAnalyticsView = () => {
 
   if (loading && transactions.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Analyzing Portfolio...</p>
+      <LoadingScreen
+        title="Analyzing portfolio"
+        subtitle="Aggregating trends, category splits, and business performance."
+      />
+    );
+  }
+
+  if (loadError && transactions.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+          <p className="text-lg font-black text-slate-900">Analytics unavailable</p>
+          <p className="mt-2 text-sm font-medium text-slate-500">{loadError}</p>
+          <Button onClick={loadData} className="mt-4 bg-blue-600 hover:bg-blue-700">Retry</Button>
+        </div>
       </div>
     );
   }

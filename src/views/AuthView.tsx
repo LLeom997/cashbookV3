@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { signInUser, signUpUser } from '../services/storage';
+import { signInUser, signUpUser } from '../services/auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -9,16 +8,16 @@ import { WalletIcon, MailIcon, LockIcon, ArrowRightIcon } from 'lucide-react';
 
 export const AuthView = ({ onLogin }: { onLogin: () => void }) => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('lleom23@gmail.com');
-  const [password, setPassword] = useState('Maitreya1568@@');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
-        toast.error('Please enter both email and password.');
-        return;
+      toast.error('Please enter both email and password.');
+      return;
     }
 
     setLoading(true);
@@ -29,23 +28,22 @@ export const AuthView = ({ onLogin }: { onLogin: () => void }) => {
         onLogin();
       } else {
         const user = await signUpUser(email, password);
-        
+
         if (user?.identities?.length === 0) {
-            toast.info('Account created! Please check your email to confirm your account before logging in.');
-            setIsLogin(true); // Switch to login view
+          toast.info('Account created. Check your email to confirm it before logging in.');
+          setIsLogin(true);
         } else if (user) {
-            // Auto login successful
-            toast.success('Account created successfully!');
-            onLogin();
+          toast.success('Account created successfully.');
+          onLogin();
         } else {
-            throw new Error('Sign up failed. Please try again.');
+          throw new Error('Sign up failed. Please try again.');
         }
       }
     } catch (err: any) {
       console.error(err);
       let msg = err.message || 'Authentication failed';
       if (msg.includes('Failed to fetch')) {
-        msg = 'Connection Error: Could not reach Supabase. Please check your URL and network connection.';
+        msg = 'Connection error: could not reach Supabase. Check your config and network connection.';
       }
       toast.error(msg);
     } finally {
@@ -70,7 +68,9 @@ export const AuthView = ({ onLogin }: { onLogin: () => void }) => {
               {isLogin ? 'Welcome Back' : 'Create Account'}
             </CardTitle>
             <CardDescription className="font-medium">
-              {isLogin ? 'Enter your credentials to access your account' : 'Sign up to start managing your business cash flow'}
+              {isLogin
+                ? 'Enter your credentials to access your account'
+                : 'Sign up to start managing your business cash flow'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -100,7 +100,7 @@ export const AuthView = ({ onLogin }: { onLogin: () => void }) => {
                     className="pl-10 h-12 border-slate-200 focus:ring-blue-500"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Enter your password"
                   />
                 </div>
               </div>
@@ -109,7 +109,7 @@ export const AuthView = ({ onLogin }: { onLogin: () => void }) => {
                 disabled={loading}
                 className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest shadow-lg shadow-blue-100 mt-2"
               >
-                {loading ? 'Processing...' : (isLogin ? 'Log In' : 'Sign Up')}
+                {loading ? 'Processing...' : isLogin ? 'Log In' : 'Sign Up'}
                 <ArrowRightIcon className="w-4 h-4 ml-2" />
               </Button>
             </form>
@@ -117,10 +117,12 @@ export const AuthView = ({ onLogin }: { onLogin: () => void }) => {
           <CardFooter className="flex flex-col space-y-4 bg-slate-50/50 border-t border-slate-100 p-6">
             <Button
               variant="link"
-              onClick={() => { setIsLogin(!isLogin); }}
+              onClick={() => {
+                setIsLogin(!isLogin);
+              }}
               className="text-blue-600 font-bold hover:text-blue-700 p-0 h-auto"
             >
-              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Log in"}
+              {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
             </Button>
           </CardFooter>
         </Card>

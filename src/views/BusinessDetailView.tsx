@@ -1,7 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { BookWithTotals, Business, BusinessWithTotals, ProjectCollaborator, JoinCode } from '../types';
-import { getBooks, getBusiness, createBook, updateBook, deleteBook, getCollaborators, inviteCollaborator, removeCollaborator, updateCollaborator, getJoinCodes, generateJoinCode, deleteJoinCode } from '../services/storage';
+import { getBusiness } from '../services/businesses';
+import { getBooks, createBook, updateBook, deleteBook } from '../services/ledgers';
+import { getCollaborators, removeCollaborator, updateCollaborator, getJoinCodes, generateJoinCode, deleteJoinCode } from '../services/collaborators';
 import { ArrowLeftIcon, PlusCircleIcon, PencilIcon, TrashIcon, UserPlusIcon, ChevronRightIcon, WalletIcon, LayoutGridIcon, MailIcon, ShieldCheckIcon, ShieldAlertIcon, ShieldIcon, CheckIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
@@ -12,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store';
+import { LoadingScreen } from '../components/LoadingScreen';
 
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -27,7 +30,7 @@ export const BusinessDetailView = ({ }: Props) => {
     return <div className="p-10 text-center">Business ID missing</div>;
   }
 
-  const { dataBooks, setDataBooks } = useAppStore();
+  const { dataBooks, setDataBooks, hasHydrated } = useAppStore();
   const books = dataBooks[businessId] || [];
   const setBooks = (newBooks: BookWithTotals[]) => setDataBooks(businessId, newBooks);
 
@@ -49,6 +52,7 @@ export const BusinessDetailView = ({ }: Props) => {
   const [inviteRole, setInviteRole] = useState<'admin' | 'editor' | 'viewer'>('viewer');
   const [selectedLedgerIds, setSelectedLedgerIds] = useState<string[]>([]);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (alert) {
@@ -59,6 +63,7 @@ export const BusinessDetailView = ({ }: Props) => {
 
   const loadData = async () => {
     if (books.length === 0 || !business) setLoading(true);
+    setLoadError(null);
     try {
       const biz = await getBusiness(businessId);
       if (biz) {
@@ -74,6 +79,7 @@ export const BusinessDetailView = ({ }: Props) => {
       setJoinCodes(codes);
     } catch (e) {
       console.error(e);
+      setLoadError("Couldn't load this business.");
       toast.error('Failed to load business data');
     } finally {
       setLoading(false);
@@ -81,8 +87,9 @@ export const BusinessDetailView = ({ }: Props) => {
   };
 
   useEffect(() => {
+    if (!hasHydrated) return;
     loadData();
-  }, [businessId]);
+  }, [businessId, hasHydrated]);
 
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,11 +224,21 @@ export const BusinessDetailView = ({ }: Props) => {
   };
 
   if (loading && !business) {
-    return <div className="p-10 text-center animate-pulse text-slate-400">Loading business...</div>;
+    return (
+      <LoadingScreen
+        compact
+        title="Loading business"
+        subtitle="Pulling ledgers, permissions, and collaboration details."
+      />
+    );
   }
 
   if (!business) {
-    return <div className="p-10 text-center text-slate-500">Business not found.</div>;
+    return (
+      <div className="p-10 text-center text-slate-500">
+        {loadError || 'Business not found.'}
+      </div>
+    );
   }
 
   // Cumulative totals are now fetched directly from the persistent database columns mapped in storage.ts

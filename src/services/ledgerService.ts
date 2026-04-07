@@ -1,4 +1,5 @@
-import { getBook, getTransactionsWithBalance, getBookTotals } from './storage';
+import { getBook, getBookTotals } from './ledgers';
+import { getTransactionsWithBalance } from './transactions';
 import { Book, TransactionWithBalance, BookWithTotals } from '../types';
 
 export interface LedgerData {

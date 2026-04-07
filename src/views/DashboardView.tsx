@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { BusinessWithTotals, User } from '../types';
-import { getBusinesses, createBusiness, updateBusiness, deleteBusiness, useJoinCode } from '../services/storage';
+import { getBusinesses, createBusiness, updateBusiness, deleteBusiness } from '../services/businesses';
+import { useJoinCode } from '../services/collaborators';
 import { PlusCircleIcon, PencilIcon, TrashIcon, SettingsIcon, SearchIcon, LogOutIcon, LayoutDashboardIcon, ListTodoIcon, WalletIcon, TrendingUpIcon, ShieldCheckIcon, UsersIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
@@ -21,7 +22,7 @@ interface Props {
 }
 
 export const DashboardView = ({ user, onLogout }: Props) => {
-  const { dataBusinesses: businesses, setDataBusinesses: setBusinesses } = useAppStore();
+  const { dataBusinesses: businesses, setDataBusinesses: setBusinesses, hasHydrated } = useAppStore();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -37,6 +38,7 @@ export const DashboardView = ({ user, onLogout }: Props) => {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'destructive' | 'info' } | null>(null);
 
@@ -49,11 +51,13 @@ export const DashboardView = ({ user, onLogout }: Props) => {
 
   const loadData = async () => {
     if (businesses.length === 0) setLoading(true);
+    setLoadError(null);
     try {
       const data = await getBusinesses(user.id);
       setBusinesses(data);
     } catch (e) {
       console.error(e);
+      setLoadError("Couldn't load businesses.");
       toast.error('Failed to load businesses');
     } finally {
       setLoading(false);
@@ -61,8 +65,9 @@ export const DashboardView = ({ user, onLogout }: Props) => {
   };
 
   useEffect(() => {
+    if (!hasHydrated) return;
     loadData();
-  }, [user.id]);
+  }, [user.id, hasHydrated]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -301,6 +306,12 @@ export const DashboardView = ({ user, onLogout }: Props) => {
               {[1, 2, 3].map(i => (
                 <Card key={i} className="animate-pulse bg-slate-100 h-48 border-none" />
               ))}
+            </div>
+          ) : loadError ? (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200">
+              <p className="text-slate-700 font-bold">Businesses unavailable</p>
+              <p className="text-slate-500 text-sm mt-1">{loadError}</p>
+              <Button onClick={loadData} className="mt-4 bg-blue-600 hover:bg-blue-700">Retry</Button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">

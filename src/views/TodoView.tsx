@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
+import { LoadingScreen } from '../components/LoadingScreen';
 
 export interface Todo {
   id: string;
@@ -23,23 +24,26 @@ interface TodoViewProps {
 }
 
 export const TodoView: React.FC<TodoViewProps> = ({}) => {
-  const { dataTodos: todos, setDataTodos: setTodos } = useAppStore();
+  const { dataTodos: todos, setDataTodos: setTodos, hasHydrated } = useAppStore();
   const navigate = useNavigate();
   const [newTodo, setNewTodo] = useState('');
   const [loading, setLoading] = useState(todos.length === 0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const isMounted = useRef(true);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     isMounted.current = true;
     fetchTodos();
     return () => {
       isMounted.current = false;
     };
-  }, []);
+  }, [hasHydrated]);
 
   async function fetchTodos() {
     try {
       if (todos.length === 0) setLoading(true);
+      setLoadError(null);
       const { data, error } = await supabase
         .from('todos')
         .select('*')
@@ -47,6 +51,7 @@ export const TodoView: React.FC<TodoViewProps> = ({}) => {
 
       if (error) {
         console.error('Error fetching todos:', error);
+        setLoadError("Couldn't load tasks.");
         toast.error('Failed to load tasks');
       } else if (isMounted.current) {
         setTodos(data || []);
@@ -156,7 +161,17 @@ export const TodoView: React.FC<TodoViewProps> = ({}) => {
           </div>
 
           {loading ? (
-            <div className="text-center py-20 animate-pulse text-slate-400 font-bold uppercase tracking-widest text-xs">Loading tasks...</div>
+            <LoadingScreen
+              compact
+              title="Loading tasks"
+              subtitle="Restoring your reminders and follow-ups."
+            />
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200">
+              <p className="text-slate-700 font-bold">Tasks unavailable</p>
+              <p className="text-sm text-slate-500 mt-1">{loadError}</p>
+              <Button onClick={fetchTodos} className="mt-4 bg-blue-600 hover:bg-blue-700">Retry</Button>
+            </div>
           ) : (
             <div className="space-y-3">
               {todos.length === 0 ? (

@@ -1,43 +1,40 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Book, Transaction, TransactionType, User, TransactionWithBalance } from '../types';
+import { Book, Transaction, TransactionType, TransactionWithBalance } from '../types';
 import {
   updateTransaction,
   deleteTransaction,
   addBulkTransactions,
   addTransaction,
-  getBusiness,
-  getBook,
   getTransactionsWithBalance,
+} from '../services/transactions';
+import { getBusiness } from '../services/businesses';
+import {
+  getBook,
   updateBookTotals,
   fetchLedgerCustomSettings,
   addLedgerCategory,
-  deleteLedgerCategory,
   addLedgerSubcategory,
-  deleteLedgerSubcategory,
   addLedgerPaymentMode,
-  deleteLedgerPaymentMode,
   syncLedgerSettings,
-  updateLedgerSettings
-} from '../services/storage';
-import { fetchLedgerData } from '../services/ledgerService';
+  updateLedgerSettings,
+} from '../services/ledgers';
 import {
   ArrowLeftIcon,
   PlusCircleIcon,
   DownloadIcon,
-  BarChart3Icon,
-  TagIcon,
   SettingsIcon,
   CheckCircle2Icon,
   AlertCircleIcon,
   InfoIcon,
   XIcon
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { useAppStore } from '../store';
+import { LoadingScreen } from '../components/LoadingScreen';
 
 // Modular Components
 import { SummaryCards } from './BookDetail/SummaryCards';
@@ -50,8 +47,7 @@ import { CategoryManager } from './BookDetail/CategoryManager';
 import {
   parseDateString,
   parseTimeString,
-  parseCSVRow,
-  formatCurrency
+  parseCSVRow
 } from '../lib/utils';
 
 interface Props {
@@ -75,7 +71,8 @@ export const BookDetailView = ({ }: Props) => {
     setBookSettings,
     dataTotals,
     setDataTotals,
-    user
+    user,
+    hasHydrated
   } = useAppStore();
 
   const transactions = dataTransactions[bookId] || [];
@@ -111,6 +108,7 @@ export const BookDetailView = ({ }: Props) => {
   const isFiltered = filterParty !== 'ALL' || filterCategory !== 'ALL' || filterPaymentMode !== 'ALL' || searchTerm !== '';
 
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'destructive' | 'info' } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (alert) {
@@ -131,6 +129,7 @@ export const BookDetailView = ({ }: Props) => {
 
   const loadData = useCallback(async (isAppend: boolean = false) => {
     if (!isAppend && (transactions.length === 0 || !book)) setLoading(true);
+    setLoadError(null);
 
     try {
       // 1. Fetch Ledger Info
@@ -189,6 +188,7 @@ export const BookDetailView = ({ }: Props) => {
 
     } catch (e) {
       console.error(e);
+      setLoadError("Couldn't load this ledger right now.");
       toast.error("Failed to load ledger data");
     } finally {
       setLoading(false);
@@ -196,8 +196,9 @@ export const BookDetailView = ({ }: Props) => {
   }, [bookId, book, transactions.length]);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     loadData();
-  }, [bookId]);
+  }, [bookId, hasHydrated]);
 
   const sortTransactions = (txs: any[]) => {
     const sortedAsc = [...txs].sort((a, b) => {
@@ -544,7 +545,28 @@ export const BookDetailView = ({ }: Props) => {
     else { setSortField(field); setSortOrder('desc'); }
   };
 
-  if (loading && transactions.length === 0) return <div className="p-10 text-center animate-pulse text-slate-400">Loading ledger...</div>;
+  if (loading && transactions.length === 0) {
+    return (
+      <LoadingScreen
+        compact
+        title="Loading ledger"
+        subtitle="Building balances, entries, and ledger settings."
+      />
+    );
+  }
+  if (loadError && transactions.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50/50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+          <p className="text-lg font-black text-slate-900">Ledger unavailable</p>
+          <p className="mt-2 text-sm font-medium text-slate-500">{loadError}</p>
+          <Button onClick={() => loadData(false)} className="mt-4 bg-blue-600 hover:bg-blue-700">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-32 relative">
@@ -583,12 +605,12 @@ export const BookDetailView = ({ }: Props) => {
             <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImportCSV} />
             {role !== 'viewer' && (
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="flex items-center">
-                <PlusCircleIcon className="w-4 h-4 mr-1.5 sm:mr-2" /> 
+                <PlusCircleIcon className="w-4 h-4 mr-1.5 sm:mr-2" />
                 <span className="text-[10px] sm:text-sm">Import</span>
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={handleExportCSV} className="flex items-center">
-              <DownloadIcon className="w-4 h-4 mr-1.5 sm:mr-2" /> 
+              <DownloadIcon className="w-4 h-4 mr-1.5 sm:mr-2" />
               <span className="text-[10px] sm:text-sm">Export</span>
             </Button>
           </div>
@@ -655,11 +677,11 @@ export const BookDetailView = ({ }: Props) => {
             if (sel) next.add(id); else next.delete(id);
             setSelectedTxs(next);
           }}
-          onEditTx={(tx) => { 
+          onEditTx={(tx) => {
             if (role === 'viewer') return;
-            setEditingTx(tx); 
-            setAddType(tx.type); 
-            setShowAddModal(true); 
+            setEditingTx(tx);
+            setAddType(tx.type);
+            setShowAddModal(true);
           }}
           sortField={sortField} sortOrder={sortOrder} onSort={handleSort}
           visibleColumns={settings.visibleColumns}
@@ -730,22 +752,7 @@ export const BookDetailView = ({ }: Props) => {
       <TransactionDialog
         isOpen={showAddModal}
         onClose={() => { setShowAddModal(false); setEditingTx(null); }}
-        onSave={async (tx) => {
-          if (editingTx) {
-            await updateTransaction({ ...editingTx, ...tx });
-            toast.success("Transaction updated");
-          } else {
-            await addTransaction({ ...tx, bookId });
-            toast.success("Transaction added");
-          }
-          // Quick Sync Check
-          syncNewPaymentMode(tx.paymentMode || '');
-          if (tx.category) syncNewCategory(tx.category);
-
-          setShowAddModal(false);
-          setEditingTx(null);
-          loadData(false);
-        }}
+        onSave={handleSaveTransaction}
         initialType={addType}
         editingTx={editingTx}
         user={user}
