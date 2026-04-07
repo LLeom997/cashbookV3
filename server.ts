@@ -5,6 +5,7 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -20,7 +21,6 @@ async function startServer() {
   const VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY =
     process.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
-  // Temporary startup log for local debugging
   console.log('Supabase Config:', {
     url: VITE_SUPABASE_URL,
     key: VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY,
@@ -78,13 +78,31 @@ async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: 'spa',
+      appType: 'custom',
     });
+
     app.use(vite.middlewares);
+
+    app.use(async (req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api/')) {
+        return next();
+      }
+
+      try {
+        const indexPath = path.resolve(__dirname, 'index.html');
+        const template = await fs.readFile(indexPath, 'utf-8');
+        const html = await vite.transformIndexHtml(req.originalUrl, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } catch (error) {
+        vite.ssrFixStacktrace(error as Error);
+        next(error);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+
+    app.get(/^(?!\/api\/).*/, (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
