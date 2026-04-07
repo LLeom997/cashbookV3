@@ -174,16 +174,16 @@ export const DashboardView = ({ user, onLogout }: Props) => {
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20">
-      <header className="bg-white border-b sticky top-0 z-20 backdrop-blur-md bg-white/80">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-2">
+      <header className="bg-white/80 border-b sticky top-0 z-20 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 min-h-16 py-3 flex justify-between items-center gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="bg-blue-600 p-2 rounded-lg">
               <LayoutDashboardIcon className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-xl font-bold text-slate-900 hidden sm:block">Cashflow Pro</h1>
+            <h1 className="text-base sm:text-xl font-bold text-slate-900 truncate">Cashflow Pro</h1>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             <Button variant="ghost" size="sm" onClick={() => navigate('/settings')} className="text-slate-600 px-2 sm:px-3">
               <SettingsIcon className="w-6 h-6 sm:w-4 sm:h-4 sm:mr-2" />
               <span className="hidden sm:inline">Settings</span>
@@ -221,15 +221,15 @@ export const DashboardView = ({ user, onLogout }: Props) => {
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/20 rounded-full -ml-32 -mb-32 blur-3xl group-hover:bg-indigo-500/30 transition-all duration-700" />
 
           <CardContent className="p-5 sm:p-6 relative z-10">
-            <div className="flex justify-between items-start mb-4 sm:mb-6">
-              <div className="space-y-1 sm:space-y-1.5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start mb-4 sm:mb-6">
+              <div className="space-y-1 sm:space-y-1.5 min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 animate-pulse" />
                   <p className="text-blue-100 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] opacity-80">Global Portfolio Balance</p>
                 </div>
                 <h2 className="text-3xl sm:text-4xl font-black tracking-tight drop-shadow-sm">{formatCurrency(totalBalance)}</h2>
               </div>
-              <div className="flex flex-col items-end gap-3">
+              <div className="flex items-center justify-between sm:flex-col sm:items-end gap-3">
                 <div className="hidden sm:block p-3 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10">
                   <WalletIcon className="w-6 h-6 text-white/80" />
                 </div>
@@ -324,12 +324,12 @@ export const DashboardView = ({ user, onLogout }: Props) => {
 
 
                   <CardHeader className="p-4 pb-2">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg sm:text-xl font-bold group-hover:text-blue-600 transition-colors truncate max-w-[150px] sm:max-w-[200px] flex items-center gap-2">
-                          {b.name}
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <CardTitle className="text-lg sm:text-xl font-bold group-hover:text-blue-600 transition-colors flex items-center gap-2 min-w-0">
+                          <span className="truncate">{b.name}</span>
                           {b.isShared && (
-                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[8px] uppercase tracking-tighter">
+                            <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[8px] uppercase tracking-tighter shrink-0">
                               <UsersIcon className="w-2 h-2" />
                               Shared
                             </span>
@@ -375,7 +375,7 @@ export const DashboardView = ({ user, onLogout }: Props) => {
                       </div>
                     )}
 
-                    <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                    <div className="flex flex-col gap-3 pt-4 border-t border-slate-100 sm:flex-row sm:justify-between sm:items-center">
                       <div className="flex gap-4 text-xs">
                         <div className="space-y-0.5">
                           <p className="text-slate-400 font-medium uppercase text-[9px]">Cash In</p>
@@ -388,7 +388,7 @@ export const DashboardView = ({ user, onLogout }: Props) => {
                       </div>
 
                       {!b.isShared || b.role === 'admin' ? (
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -407,7 +407,7 @@ export const DashboardView = ({ user, onLogout }: Props) => {
                           </Button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1 text-[8px] font-black text-slate-300 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 text-[8px] font-black text-slate-300 uppercase tracking-widest opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                           <ShieldCheckIcon className="w-3 h-3" />
                           {b.role} Access
                         </div>

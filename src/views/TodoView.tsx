@@ -135,7 +135,7 @@ export const TodoView: React.FC<TodoViewProps> = ({}) => {
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
         <Card className="border-none shadow-xl bg-white overflow-hidden">
           <CardContent className="p-6">
-            <form onSubmit={addTodo} className="flex gap-3">
+            <form onSubmit={addTodo} className="flex flex-col sm:flex-row gap-3">
               <Input
                 type="text"
                 value={newTodo}
@@ -145,7 +145,7 @@ export const TodoView: React.FC<TodoViewProps> = ({}) => {
               />
               <Button 
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white h-12 px-6 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-100"
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white h-12 px-6 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-100"
               >
                 <PlusIcon className="w-4 h-4 mr-2" />
                 Add Task
@@ -218,7 +218,7 @@ export const TodoView: React.FC<TodoViewProps> = ({}) => {
                           variant="ghost"
                           size="icon"
                           onClick={() => deleteTodo(todo.id)}
-                          className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                          className="h-8 w-8 shrink-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
                         >
                           <Trash2Icon className="w-4 h-4" />
                         </Button>

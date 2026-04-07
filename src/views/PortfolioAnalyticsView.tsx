@@ -141,19 +141,19 @@ export const PortfolioAnalyticsView = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20 font-sans">
-      <header className="bg-white border-b sticky top-0 z-30 backdrop-blur-md bg-white/80">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <header className="bg-white/80 border-b sticky top-0 z-30 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 py-3 min-h-16 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
               <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
             </Button>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-lg font-black text-slate-900 tracking-tight">Portfolio Analytics</h1>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global Insights • {businesses.length} Businesses</p>
             </div>
           </div>
 
-          <div className="flex bg-slate-100 rounded-xl p-1 border border-slate-200">
+          <div className="grid w-full grid-cols-4 sm:w-auto bg-slate-100 rounded-xl p-1 border border-slate-200">
             {(['7D', '30D', '90D', 'ALL'] as const).map(dr => (
               <button
                 key={dr}

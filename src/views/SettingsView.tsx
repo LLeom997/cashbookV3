@@ -40,17 +40,17 @@ export const SettingsView = ({ user }: Props) => {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center space-x-4">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center space-x-4 min-w-0">
           <button onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
             <ArrowLeftIcon className="w-5 h-5 text-gray-600" />
           </button>
-          <h1 className="variant-h1 text-gray-900">Settings</h1>
+          <h1 className="variant-h1 text-gray-900 truncate">Settings</h1>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Tabs */}
-        <div className="flex bg-white rounded-xl p-1 shadow-sm border border-gray-200">
+        <div className="grid grid-cols-2 gap-1 bg-white rounded-xl p-1 shadow-sm border border-gray-200">
           <button
             onClick={() => setActiveTab('profile')}
             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'profile' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'

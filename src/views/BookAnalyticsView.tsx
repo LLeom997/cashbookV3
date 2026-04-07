@@ -91,18 +91,18 @@ export const BookAnalyticsView = ({}: Props) => {
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-32 relative">
-      <header className="bg-white border-b sticky top-0 z-20 backdrop-blur-md bg-white/80">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <header className="bg-white/80 border-b sticky top-0 z-20 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 py-3 min-h-16 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full hover:bg-slate-100">
               <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
             </Button>
-            <div>
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">Analytics: {book.name}</h1>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight truncate">Analytics: {book.name}</h1>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reports & Insights</p>
             </div>
           </div>
-          <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
+          <div className="grid w-full grid-cols-2 sm:flex sm:w-auto bg-slate-100 rounded-lg p-1 border border-slate-200">
              {['ALL', '7D', '30D', 'THIS_MONTH'].map(dr => (
                 <button 
                   key={dr} 

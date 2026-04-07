@@ -590,28 +590,28 @@ export const BookDetailView = ({ }: Props) => {
         </div>
       )}
 
-      <header className="bg-white border-b sticky top-0 z-20 backdrop-blur-md bg-white/80">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <header className="bg-white/80 border-b sticky top-0 z-20 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 min-h-16 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
               <ArrowLeftIcon className="w-5 h-5 text-slate-600" />
             </Button>
-            <div>
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">{book?.name || 'Loading...'}</h1>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight truncate">{book?.name || 'Loading...'}</h1>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ledger Details</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImportCSV} />
             {role !== 'viewer' && (
-              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="flex items-center">
+              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="flex items-center px-3 sm:px-4">
                 <PlusCircleIcon className="w-4 h-4 mr-1.5 sm:mr-2" />
-                <span className="text-[10px] sm:text-sm">Import</span>
+                <span className="hidden sm:inline text-[10px] sm:text-sm">Import</span>
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={handleExportCSV} className="flex items-center">
+            <Button variant="outline" size="sm" onClick={handleExportCSV} className="flex items-center px-3 sm:px-4">
               <DownloadIcon className="w-4 h-4 mr-1.5 sm:mr-2" />
-              <span className="text-[10px] sm:text-sm">Export</span>
+              <span className="hidden sm:inline text-[10px] sm:text-sm">Export</span>
             </Button>
           </div>
         </div>
@@ -640,14 +640,16 @@ export const BookDetailView = ({ }: Props) => {
           <h3 className="text-xl font-black text-slate-800 uppercase tracking-widest hidden md:block">Transactions</h3>
           <div className="flex gap-2 w-full md:w-auto items-center">
             {selectedTxs.size > 0 && role !== 'viewer' && (
-              <Button onClick={() => handleDelete(selectedTxs)} variant="destructive" className="flex-1 md:flex-none font-bold uppercase tracking-widest text-[10px] h-10 shadow-sm animate-in fade-in zoom-in">
+              <Button onClick={() => handleDelete(selectedTxs)} variant="destructive" className="flex-1 md:flex-none font-bold uppercase tracking-widest text-[10px] h-10 shadow-sm animate-in fade-in zoom-in min-w-0">
                 <PlusCircleIcon className="w-4 h-4 md:mr-2 rotate-45" />
+                <span className="md:hidden">Delete</span>
                 <span className="hidden md:inline">Delete {selectedTxs.size}</span>
               </Button>
             )}
             {role !== 'viewer' && (
-              <Button onClick={() => setShowManageCategories(true)} variant="outline" className="flex-1 md:flex-none bg-white border-slate-200 text-slate-600 font-bold uppercase tracking-widest text-[10px] h-10 shadow-sm hover:border-blue-400 hover:text-blue-600 transition-all">
+              <Button onClick={() => setShowManageCategories(true)} variant="outline" className="flex-1 md:flex-none bg-white border-slate-200 text-slate-600 font-bold uppercase tracking-widest text-[10px] h-10 shadow-sm hover:border-blue-400 hover:text-blue-600 transition-all min-w-0">
                 <SettingsIcon className="w-4 h-4 md:mr-2" />
+                <span className="md:hidden">Manage</span>
                 <span className="hidden md:inline">Settings</span>
               </Button>
             )}
@@ -689,15 +691,15 @@ export const BookDetailView = ({ }: Props) => {
 
         {sortedTransactions.length > 0 && (
           <div className="flex flex-col gap-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-4">
-              <div className="flex flex-col gap-1">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-4">
+              <div className="flex flex-col gap-1 min-w-0">
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                   Showing {(currentPage - 1) * rowsLimit + 1} to {Math.min(currentPage * rowsLimit, sortedTransactions.length)} of {sortedTransactions.length} results
                 </p>
                 {isCalculatingTotals && <span className="text-[10px] animate-pulse text-blue-600 font-bold uppercase tracking-widest leading-none">(Syncing more records...)</span>}
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
                 <div className="flex items-center gap-1">
                   <Button
                     variant="outline" size="sm"
@@ -722,7 +724,7 @@ export const BookDetailView = ({ }: Props) => {
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-2 border-l pl-4 border-slate-100">
+                <div className="flex items-center gap-2 sm:border-l sm:pl-4 border-slate-100">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Limit:</p>
                   <select
                     value={rowsLimit}
@@ -739,11 +741,11 @@ export const BookDetailView = ({ }: Props) => {
       </main>
 
       {role !== 'viewer' && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex gap-4 z-30">
-          <Button size="lg" onClick={() => { setEditingTx(null); setAddType(TransactionType.IN); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-8 h-14 shadow-xl font-black uppercase tracking-widest text-xs">
+        <div className="fixed bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 flex gap-3 sm:gap-4 z-30">
+          <Button size="lg" onClick={() => { setEditingTx(null); setAddType(TransactionType.IN); setShowAddModal(true); }} className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-4 sm:px-8 h-14 shadow-xl font-black uppercase tracking-widest text-xs">
             <PlusCircleIcon className="w-5 h-5 mr-2" /> Cash In
           </Button>
-          <Button size="lg" onClick={() => { setEditingTx(null); setAddType(TransactionType.OUT); setShowAddModal(true); }} className="bg-rose-600 hover:bg-rose-700 text-white rounded-full px-8 h-14 shadow-xl font-black uppercase tracking-widest text-xs">
+          <Button size="lg" onClick={() => { setEditingTx(null); setAddType(TransactionType.OUT); setShowAddModal(true); }} className="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 text-white rounded-full px-4 sm:px-8 h-14 shadow-xl font-black uppercase tracking-widest text-xs">
             <PlusCircleIcon className="w-5 h-5 mr-2" /> Cash Out
           </Button>
         </div>
