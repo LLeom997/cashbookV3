@@ -55,6 +55,8 @@ interface Props {
 }
 
 export const BookDetailView = ({ }: Props) => {
+  const INITIAL_LOAD_COUNT = 200;
+  const BACKGROUND_CHUNK_SIZE = 500;
   const { bookId } = useParams<{ bookId: string }>();
   const navigate = useNavigate();
 
@@ -104,6 +106,7 @@ export const BookDetailView = ({ }: Props) => {
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const totalsAbortController = useRef<AbortController | null>(null);
+  const activeLoadId = useRef(0);
 
   const isFiltered = filterParty !== 'ALL' || filterCategory !== 'ALL' || filterPaymentMode !== 'ALL' || searchTerm !== '';
 
@@ -127,46 +130,94 @@ export const BookDetailView = ({ }: Props) => {
     return dataTotals[bookId] || { totalIn: 0, totalOut: 0, balance: 0 };
   }, [isFiltered, filteredTotals, dataTotals, bookId]);
 
-  const loadData = useCallback(async (isAppend: boolean = false) => {
-    if (!isAppend && (transactions.length === 0 || !book)) setLoading(true);
+  const calculateTotals = useCallback((txs: Transaction[]) => {
+    return txs.reduce(
+      (acc, tx) => {
+        if (tx.type === TransactionType.IN) {
+          acc.totalIn += tx.amount;
+          acc.balance += tx.amount;
+        } else {
+          acc.totalOut += tx.amount;
+          acc.balance -= tx.amount;
+        }
+        return acc;
+      },
+      { totalIn: 0, totalOut: 0, balance: 0 }
+    );
+  }, []);
+
+  const persistLedgerTotals = useCallback((txs: Transaction[]) => {
+    const totals = calculateTotals(txs);
+    setDataTotals(bookId, totals);
+    updateBookTotals(bookId, totals);
+    return totals;
+  }, [bookId, calculateTotals, setDataTotals]);
+
+  const loadData = useCallback(async () => {
+    const loadId = ++activeLoadId.current;
+    if (transactions.length === 0 || !book) setLoading(true);
     setLoadError(null);
+    setIsCalculatingTotals(false);
+    setOffset(0);
+    setHasMore(false);
 
     try {
       // 1. Fetch Ledger Info
       const ledger = await getBook(bookId);
+      if (activeLoadId.current !== loadId) return;
       if (ledger) {
         setBook(ledger);
         // 2. Fetch Business Role
         const biz = await getBusiness(ledger.businessId);
+        if (activeLoadId.current !== loadId) return;
         if (biz) {
           setRole(biz.role as any);
         }
       }
 
-      let currentOffset = 0;
-      const chunkSize = 1000;
-      let allTxs: Transaction[] = [];
+      const [firstBatch, cloudSettings] = await Promise.all([
+        getTransactionsWithBalance(bookId, INITIAL_LOAD_COUNT, 0),
+        fetchLedgerCustomSettings(bookId)
+      ]);
+      if (activeLoadId.current !== loadId) return;
 
-      // Chunked Streaming Load
-      while (true) {
-        const txs = await getTransactionsWithBalance(bookId, chunkSize, currentOffset);
-        if (txs.length === 0) break;
+      const initialTransactions = sortTransactions(firstBatch);
+      setTransactions(initialTransactions);
+      persistLedgerTotals(initialTransactions);
+      setOffset(initialTransactions.length);
+      setHasMore(firstBatch.length === INITIAL_LOAD_COUNT);
+      setLoading(false);
 
-        allTxs = [...allTxs, ...txs];
-        const processed = sortTransactions(allTxs);
-        setTransactions(processed);
+      let allTxs: TransactionWithBalance[] = initialTransactions;
+      let currentOffset = initialTransactions.length;
+      const canContinueLoading = firstBatch.length === INITIAL_LOAD_COUNT;
 
-        // Update Summary Cards from the loaded dataset
-        updateLocalTotals(processed);
+      if (canContinueLoading) {
+        setIsCalculatingTotals(true);
 
-        if (txs.length < chunkSize) break;
-        currentOffset += chunkSize;
-        // Small delay to allow main thread breathing room
-        await new Promise(r => setTimeout(r, 20));
+        while (activeLoadId.current === loadId) {
+          const nextChunk = await getTransactionsWithBalance(bookId, BACKGROUND_CHUNK_SIZE, currentOffset);
+          if (activeLoadId.current !== loadId) return;
+          if (nextChunk.length === 0) break;
+
+          allTxs = sortTransactions([...allTxs, ...nextChunk]);
+          setTransactions(allTxs);
+          persistLedgerTotals(allTxs);
+
+          currentOffset += nextChunk.length;
+          setOffset(currentOffset);
+          setHasMore(nextChunk.length === BACKGROUND_CHUNK_SIZE);
+
+          if (nextChunk.length < BACKGROUND_CHUNK_SIZE) break;
+          await new Promise(r => setTimeout(r, 20));
+        }
       }
 
+      setIsCalculatingTotals(false);
+      setHasMore(false);
+
       // --- Cloud Sync for Custom Settings ---
-      const { categories: cloudCats, paymentModes: cloudModes } = await fetchLedgerCustomSettings(bookId);
+      const { categories: cloudCats, paymentModes: cloudModes } = cloudSettings;
 
       // Simple merge/migration: if local has data and cloud doesn't, we'll eventually push on next change.
       // However, we prioritize cloud data if it exists.
@@ -191,14 +242,20 @@ export const BookDetailView = ({ }: Props) => {
       setLoadError("Couldn't load this ledger right now.");
       toast.error("Failed to load ledger data");
     } finally {
-      setLoading(false);
+      if (activeLoadId.current === loadId) {
+        setLoading(false);
+        setIsCalculatingTotals(false);
+      }
     }
-  }, [bookId, book, transactions.length]);
+  }, [bookId, persistLedgerTotals, setCustomBookCategories, setCustomBookPaymentModes]);
 
   useEffect(() => {
     if (!hasHydrated) return;
     loadData();
-  }, [bookId, hasHydrated]);
+    return () => {
+      activeLoadId.current += 1;
+    };
+  }, [bookId, hasHydrated, loadData]);
 
   const sortTransactions = (txs: any[]) => {
     const sortedAsc = [...txs].sort((a, b) => {
@@ -209,24 +266,6 @@ export const BookDetailView = ({ }: Props) => {
     return sortedAsc.reverse();
   };
 
-  const updateLocalTotals = (txs: any[]) => {
-    const t = txs.reduce(
-      (acc, tx) => {
-        if (tx.type === TransactionType.IN) return { ...acc, totalIn: acc.totalIn + tx.amount, balance: acc.balance + tx.amount };
-        else return { ...acc, totalOut: acc.totalOut + tx.amount, balance: acc.balance - tx.amount };
-      },
-      { totalIn: 0, totalOut: 0, balance: 0 }
-    );
-
-    if (isFiltered) {
-      setFilteredTotals(t);
-    } else {
-      setDataTotals(bookId, t);
-      // "Clear Action": Post the UI's summary card values to the backend tables
-      updateBookTotals(bookId, t);
-    }
-  };
-
   const handleSaveTransaction = async (txData: any) => {
     try {
       if (editingTx) {
@@ -235,8 +274,7 @@ export const BookDetailView = ({ }: Props) => {
         if (data) {
           const updatedTxs = transactions.map(t => t.id === data.id ? { ...t, ...data } : t);
           setTransactions(sortTransactions(updatedTxs));
-          // updateLocalTotals handles the DB push
-          updateLocalTotals(updatedTxs);
+          persistLedgerTotals(updatedTxs);
           toast.success('Transaction updated');
         }
       } else {
@@ -245,8 +283,7 @@ export const BookDetailView = ({ }: Props) => {
         if (data) {
           const newTxs = [data, ...transactions];
           setTransactions(sortTransactions(newTxs));
-          // updateLocalTotals handles the DB push
-          updateLocalTotals(newTxs);
+          persistLedgerTotals(newTxs);
           toast.success('Transaction added');
         }
       }
@@ -270,7 +307,7 @@ export const BookDetailView = ({ }: Props) => {
       );
 
       setTransactions(sortTransactions(remainingTxs));
-      updateLocalTotals(remainingTxs);
+      persistLedgerTotals(remainingTxs);
       setSelectedTxs(new Set());
       toast.success(idsToDelete.length > 1 ? `Deleted ${idsToDelete.length} transactions` : 'Transaction deleted');
     } catch (e: any) {
@@ -444,7 +481,7 @@ export const BookDetailView = ({ }: Props) => {
             type: 'success'
           });
 
-          await loadData(false);
+          await loadData();
           toast.success(`Imported ${allNewTxs.length} records`);
         } catch (e) {
           toast.error("Import failed");
@@ -473,9 +510,9 @@ export const BookDetailView = ({ }: Props) => {
   // Real-time Summary Aggregator for Filters
   useEffect(() => {
     if (isFiltered) {
-      updateLocalTotals(filteredTransactions);
+      setFilteredTotals(calculateTotals(filteredTransactions));
     }
-  }, [isFiltered, filteredTransactions]);
+  }, [isFiltered, filteredTransactions, calculateTotals]);
 
   const sortedTransactions = useMemo(() => {
     const list = [...filteredTransactions].sort((a, b) => {
@@ -696,7 +733,16 @@ export const BookDetailView = ({ }: Props) => {
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                   Showing {(currentPage - 1) * rowsLimit + 1} to {Math.min(currentPage * rowsLimit, sortedTransactions.length)} of {sortedTransactions.length} results
                 </p>
-                {isCalculatingTotals && <span className="text-[10px] animate-pulse text-blue-600 font-bold uppercase tracking-widest leading-none">(Syncing more records...)</span>}
+                {isCalculatingTotals && (
+                  <span className="text-[10px] animate-pulse text-blue-600 font-bold uppercase tracking-widest leading-none">
+                    Loading more records in background... {offset} loaded so far
+                  </span>
+                )}
+                {!isCalculatingTotals && hasMore && (
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">
+                    More records available
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
